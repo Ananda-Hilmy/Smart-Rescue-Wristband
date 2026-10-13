@@ -1,0 +1,353 @@
+  // =========================================================================
+  // KONFIGURASI UTAMA SPREADSHEET
+  // =========================================================================
+  const SPREADSHEET_ID = "---";
+  const SHEET_NAME = "---";
+
+  // =========================================================================
+  // 1. MAIN ENDPOINT (GET REQUEST)
+  // =========================================================================
+  function doGet(e) {
+    // A. SIMPAN DATA DARI SENSOR / ALAT (QUERY PARAMETER)
+    if (e && e.parameter && e.parameter.action === "save") {
+      return handleSaveData(e.parameter);
+    } 
+    
+    // B. KOSONGKAN SPREADSHEET
+    else if (e && e.parameter && e.parameter.action === "clear") {
+      return handleClearData();
+    }
+    
+    // C. API AMBIL DATA UNTUK EXTERNAL/API CALL
+    else if (e && e.parameter && e.parameter.action === "getData") {
+      const dataObj = getAllData();
+      return ContentService.createTextOutput(JSON.stringify(dataObj))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // D. TAMPILKAN DASHBOARD UTAMA (WEB APP)
+    else {
+      try {
+        const htmlOutput = HtmlService.createTemplateFromFile('Index').evaluate();
+        htmlOutput
+          .setTitle('Smart Rescue Wristband - SRW 1.0')
+          .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+          .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+        return htmlOutput;
+      } catch(err) {
+        const dataObj = getAllData();
+        return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString(), data: dataObj }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+  }
+
+  // =========================================================================
+  // 2. ENDPOINT POST REQUEST (DARI HARDWARE / SENSOR)
+  // =========================================================================
+  function doPost(e) {
+    try {
+      let params = {};
+      if (e && e.postData && e.postData.contents) {
+        params = JSON.parse(e.postData.contents);
+      } else if (e && e.parameter) {
+        params = e.parameter;
+      }
+      return handleSaveData(params);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        status: "error", 
+        message: err.toString() 
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // =========================================================================
+  // 3. FUNGSI DIPANGGUL LANGSUNG OLEH INDEX.HTML (SERVER-SIDE CALL)
+  // =========================================================================
+  function getDashboardData() {
+    return getAllData();
+  }
+
+  function clearDatabase() {
+    return handleClearData();
+  }
+
+  // =========================================================================
+  // 4. HELPER MENYIMPAN DATA (11 KOLOM PRESISI)
+  // =========================================================================
+  function handleSaveData(p) {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      let sheet = ss.getSheetByName(SHEET_NAME);
+      
+      // Inisialisasi Sheet jika belum ada
+      if (!sheet) {
+        sheet = ss.insertSheet(SHEET_NAME);
+        sheet.appendRow(["No", "Tanggal", "Jam", "BPM", "SpO₂", "Latitude", "Longitude", "Speed", "Satelit", "RSSI", "Status"]);
+        sheet.getRange(1, 1, 1, 11).setFontWeight("bold");
+      }
+      
+      const lastRow = sheet.getLastRow();
+      const no = lastRow <= 1 ? 1 : lastRow; // Penomoran otomatis
+      const now = new Date();
+      const tanggal = Utilities.formatDate(now, "GMT+7", "yyyy-MM-dd");
+      const jam = Utilities.formatDate(now, "GMT+7", "HH:mm:ss");
+      
+      // Tangkap data dari parameter sensor
+      const bpm = parseInt(p.bpm || p.detak || p.heart_rate) || 0;
+      const spo2 = parseInt(p.spo2 || p.suhu || p.temperature) || 0;
+      let rawLat = p.lat || p.latitude || "0.0";
+      let rawLng = p.lng || p.lon || p.longitude || "0.0";
+      const latitude = "'" + rawLat;
+      const longitude = "'" + rawLng;
+      const speed = parseFloat(p.speed || p.spd) || 0;
+      const satelit = parseInt(p.satelit || p.sat) || 0;
+      const rssi = parseInt(p.rssi) || 0;
+      
+      // Logika penentuan status
+      let status = "AMAN";
+      if (bpm === 0 && spo2 === 0) {
+        status = "TIDAK TERPASANG"; 
+      } else if (bpm < 50 || bpm > 120 || spo2 < 90) {
+        status = "BAHAYA"; 
+      }
+      
+      sheet.appendRow([
+        no,         // Col A: No
+        tanggal,    // Col B: Tanggal
+        jam,        // Col C: Jam
+        bpm,        // Col D: BPM
+        spo2,       // Col E: SpO₂
+        latitude,   // Col F: Latitude
+        longitude,  // Col G: Longitude
+        speed,      // Col H: Speed
+        satelit,    // Col I: Satelit
+        rssi,       // Col J: RSSI
+        status      // Col K: Status
+      ]);
+      
+      return ContentService.createTextOutput("SUCCESS")
+        .setMimeType(ContentService.MimeType.TEXT);
+    } catch(error) {
+      return ContentService.createTextOutput("ERROR: " + error.toString())
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
+  }
+
+  // =========================================================================
+  // 5. HELPER MENGOSONGKAN SPREADSHEET
+  // =========================================================================
+  function handleClearData() {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      if (sheet) {
+        sheet.clearContents();
+        sheet.appendRow(["No", "Tanggal", "Jam", "BPM", "SpO₂", "Latitude", "Longitude", "Speed", "Satelit", "RSSI", "Status"]);
+        sheet.getRange(1, 1, 1, 11).setFontWeight("bold");
+      }
+      return { status: "success", message: "Database berhasil dikosongkan!" };
+    } catch(err) {
+      return { status: "error", message: err.toString() };
+    }
+  }
+
+  // =========================================================================
+  // 6. PERHITUNGAN HAVERSINE (DALAM METER)
+  // =========================================================================
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  // =========================================================================
+  // 7. ANALISIS KESEHATAN KORBAN
+  // =========================================================================
+  function hitungKesehatanKorban(bpm, spo2) {
+    if (bpm === 0 && spo2 === 0) {
+      return {
+        statusKesehatan: "KORBAN TIDAK TERDETEKSI",
+        tingkatResiko: "UNKNOWN",
+        detail: "Sensor tidak mendeteksi denyut atau kadar oksigen."
+      };
+    }
+    let kondisiBpm = "";
+    let kondisiSpo2 = "";
+    let resiko = "NORMAL";
+    
+    if (bpm < 50) {
+      kondisiBpm = "Brakikardia (Denyut Terlalu Lambat)";
+      resiko = "TINGGI";
+    } else if (bpm > 120) {
+      kondisiBpm = "Takikardia (Denyut Terlalu Cepat)";
+      resiko = "TINGGI";
+    } else {
+      kondisiBpm = "Denyut Normal";
+    }
+    
+    if (spo2 < 90) {
+      kondisiSpo2 = "Hipoksia Berat (Oksigen Sangat Rendah)";
+      resiko = "KRITIS";
+    } else if (spo2 >= 90 && spo2 < 95) {
+      kondisiSpo2 = "Hipoksia Ringan";
+      if (resiko !== "KRITIS") resiko = "SEDANG";
+    } else {
+      kondisiSpo2 = "Oksigen Normal";
+    }
+    
+    let statusKesehatan = "SEHAT / STABIL";
+    if (resiko === "KRITIS") {
+      statusKesehatan = "KRITIS - BUTUH PERTOLONGAN SEGERA";
+    } else if (resiko === "TINGGI") {
+      statusKesehatan = "WASPADA - KONDISI TIDAK STABIL";
+    } else if (resiko === "SEDANG") {
+      statusKesehatan = "PANTAU - OKSIGEN AGAK RENDAH";
+    }
+    
+    return {
+      statusKesehatan: statusKesehatan,
+      tingkatResiko: resiko,
+      detail: kondisiBpm + " | " + kondisiSpo2
+    };
+  }
+
+  // =========================================================================
+  // 8. MEMBACA DATA LENGKAP (11 KOLOM A:K)
+  // =========================================================================
+  function getAllData() {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const sheet = ss.getSheetByName(SHEET_NAME);
+      
+      if (!sheet) {
+        return { data: [], movementMarkers: [] };
+      }
+      const lastRow = sheet.getLastRow();
+      if (lastRow <= 1) {
+        return { data: [], movementMarkers: [] };
+      }
+      
+      // UBAH DI SINI: Ambil maksimal 100 data terakhir (lastRow - 99)
+      const startRow = 2;
+      const numRows = lastRow - 1;
+
+      const range = sheet.getRange(startRow, 1, numRows, 11);
+      const values = range.getDisplayValues();
+      
+      let lastMarkerLat = null;
+      let lastMarkerLng = null;
+      const result = [];
+      const movementMarkers = [];
+      
+      values.forEach((row) => {
+        const no = row[0];
+        
+        let tglStr = "";
+        if (row[1] instanceof Date) {
+          tglStr = Utilities.formatDate(row[1], "GMT+7", "yyyy-MM-dd");
+        } else {
+          tglStr = String(row[1] || "");
+        }
+        
+        let jamStr = formatJamAkurat(row[2]);
+        const bpm = parseInt(row[3]) || 0;
+        const spo2 = parseInt(row[4]) || 0;
+        
+        // PERBAIKAN DESIMAL: Menghapus petik (') dan mengganti koma (,) dengan titik (.) agar parseFloat membaca desimal Indonesia dengan benar
+        let rawLat = row[5] ? row[5].toString().replace("'", "").replace(",", ".").trim() : "0";
+        let rawLng = row[6] ? row[6].toString().replace("'", "").replace(",", ".").trim() : "0";
+        
+        const curLat = parseFloat(rawLat) || 0;
+        const curLng = parseFloat(rawLng) || 0;
+        let rawSpeed = row[7] ? row[7].toString().replace(",", ".").trim() : "0";
+        const speed = parseFloat(rawSpeed) || 0;
+        const satelit = parseInt(row[8]) || 0;
+        const rssi = parseInt(row[9]) || 0;
+        const status = row[10] || "STANDBY";
+        
+        let is500mPoint = false;
+        let distFromLast = 0;
+        
+        if (curLat !== 0 && curLng !== 0) {
+          if (lastMarkerLat === null || lastMarkerLng === null) {
+            lastMarkerLat = curLat;
+            lastMarkerLng = curLng;
+            is500mPoint = true;
+            distFromLast = 0;
+          } else {
+            distFromLast = calculateDistance(lastMarkerLat, lastMarkerLng, curLat, curLng);
+            if (distFromLast >= 500) {
+              is500mPoint = true;
+              lastMarkerLat = curLat;
+              lastMarkerLng = curLng;
+            }
+          }
+        }
+        
+        const kesehatan = hitungKesehatanKorban(bpm, spo2);
+        const rowItem = {
+          no: no,
+          tanggal: tglStr,
+          jam: jamStr,
+          waktu: tglStr + " " + jamStr,
+          bpm: bpm,
+          detak: bpm,
+          spo2: spo2,
+          suhu: spo2,
+          lat: curLat,
+          lon: curLng,
+          latitude: curLat,
+          longitude: curLng,
+          speed: speed,
+          spd: speed,
+          satelit: satelit,
+          sat: satelit,
+          rssi: rssi,
+          status: status,
+          is500mPoint: is500mPoint,
+          distanceFromLastMarker: Math.round(distFromLast),
+          kesehatanKorban: kesehatan.statusKesehatan,
+          tingkatResiko: kesehatan.tingkatResiko,
+          detailKesehatan: kesehatan.detail
+        };
+        
+        result.push(rowItem);
+        if (is500mPoint) {
+          movementMarkers.push(rowItem);
+        }
+      });
+      
+      return {
+        data: result,
+        movementMarkers: movementMarkers
+      };
+    } catch(e) {
+      Logger.log("Error getAllData: " + e.toString());
+      return { data: [], movementMarkers: [] };
+    }
+  }
+
+  function formatJamAkurat(jamInput) {
+    if (!jamInput) return "00:00:00";
+    
+    if (jamInput instanceof Date) {
+      return Utilities.formatDate(jamInput, "GMT+7", "HH:mm:ss");
+    }
+    
+    let teksJam = jamInput.toString().trim();
+    
+    if (teksJam.includes("GMT") || teksJam.includes("T")) {
+      let kecocokan = teksJam.match(/\d{2}:\d{2}:\d{2}/);
+      if (kecocokan) return kecocokan[0];
+    }
+    
+    return teksJam;
+  }

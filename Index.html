@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Smart Rescue Wristband - SRW 1.0</title>
+    <!-- Google Fonts & External CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    
+    <!-- External JS Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        :root {
+            --bg-main: #060913;
+            --bg-card: #0f172a;
+            --bg-card-hover: #1e293b;
+            --border-glow: rgba(56, 189, 248, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: #e2e8f0; 
+            --text-muted: #cbd5e1;     
+            --accent-cyan: #38bdf8;
+            --accent-green: #34d399;
+            --accent-red: #f87171;
+            --accent-yellow: #fbbf24;
+            --accent-purple: #c084fc;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        body {
+            background-color: var(--bg-main);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(14, 165, 233, 0.12) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(16, 185, 129, 0.1) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.05) 0%, transparent 60%);
+            background-attachment: fixed;
+        }
+        .navbar-custom {
+            background: rgba(6, 9, 19, 0.95);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 16px 0;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .brand-logo {
+            font-weight: 800;
+            font-size: 1.4rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        .brand-logo .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 1.5rem;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+        .nav-btn {
+            border-radius: 30px;
+            padding: 9px 24px;
+            font-weight: 700;
+            font-size: 0.875rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .btn-custom-outline {
+            border: 1px solid rgba(255, 255, 255, 0.25);
+            color: var(--text-secondary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .btn-custom-outline:hover {
+            border-color: var(--accent-cyan);
+            color: #fff;
+            background: rgba(56, 189, 248, 0.15);
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+        }
+        .btn-custom-active {
+            background: linear-gradient(135deg, #0284c7, #06b6d4);
+            border: none;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+        }
+        .page-section {
+            display: none;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .page-section.active {
+            display: block;
+            opacity: 1;
+        }
+        .single-line-title {
+            white-space: nowrap;
+            font-size: clamp(1.6rem, 3.6vw, 2.8rem);
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: #ffffff;
+            margin-bottom: 1rem;
+        }
+        .hero-badge {
+            background: rgba(14, 165, 233, 0.18);
+            color: #ffffff !important;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            font-size: 0.8rem;
+            padding: 8px 22px;
+            border-radius: 50px;
+            border: 1px solid var(--accent-cyan);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.35);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .hero-subtitle {
+            color: #cbd5e1;
+            font-size: 1.1rem;
+            line-height: 1.75;
+            font-weight: 400;
+        }
+        .p1-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: var(--radius-lg);
+            padding: 30px 24px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+        }
+        .p1-card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(56, 189, 248, 0.7);
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px -10px rgba(56, 189, 248, 0.25);
+        }
+        .p1-card-center { text-align: center; align-items: center; }
+        .feature-icon-box {
+            width: 58px; height: 58px;
+            background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(2, 132, 199, 0.3));
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            color: var(--accent-cyan);
+            border-radius: 16px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.75rem; margin-bottom: 20px;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+        }
+        .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .step-badge {
+            width: 36px; height: 36px; min-width: 36px;
+            background: linear-gradient(135deg, var(--accent-cyan), #0284c7);
+            color: #ffffff; font-weight: 800; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+        .card-heading { font-size: 1.15rem; font-weight: 700; color: #ffffff; margin-bottom: 0; }
+        .card-body-text { color: #cbd5e1; font-size: 0.93rem; line-height: 1.65; font-weight: 400; margin-bottom: 0; }
+        .section-title { font-size: 1.85rem; font-weight: 800; color: #ffffff; }
+        .section-subheading { color: #94a3b8; font-size: 1.05rem; font-weight: 500; margin-top: 6px; }
+        
+        .custom-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius-lg);
+            padding: 24px; 
+            height: 100%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }
+        .card-title-custom {
+            font-size: 1.05rem; font-weight: 700; color: var(--text-primary);
+            margin-bottom: 20px; display: flex; align-items: center;
+            justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+            padding-bottom: 14px;
+        }
+        .card-subtitle-custom {
+            color: #ffffff !important; font-weight: 700; font-size: 0.85rem;
+            background: rgba(255, 255, 255, 0.1); padding: 4px 10px;
+            border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .col-stat-5 {
+        flex: 0 0 auto;
+        width: 20%; 
+        }
+        @media (max-width: 991.98px) {
+            .col-stat-5 {
+                width: 50%; 
+            }
+        }
+        @media (max-width: 575.98px) {
+            .col-stat-5 {
+                width: 100%; 
+            }
+        }
+        .stat-box {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: var(--radius-md); padding: 18px 12px; text-align: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            height: 100%; 
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .stat-box:hover { border-color: var(--accent-cyan); background: #334155; }
+        .stat-label { font-size: 0.75rem; color: #ffffff; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        .stat-value { font-size: 1.75rem; font-weight: 800; margin-top: 6px; color: #ffffff; }
+        .stat-value-mono { font-family: var(--font-mono); }
+        .stat-unit { color: #38bdf8 !important; font-weight: 800; font-size: 0.85rem; margin-left: 2px; }
+        .status-badge-custom {
+            padding: 10px 24px; border-radius: 30px; font-weight: 800;
+            display: inline-flex; align-items: center; gap: 10px;
+            font-size: 0.9rem; letter-spacing: 0.5px; text-transform: uppercase;
+        }
+        .status-waiting { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.3); }
+        .status-secure { background: rgba(52, 211, 153, 0.15); color: var(--accent-green); border: 1px solid rgba(52, 211, 153, 0.4); box-shadow: 0 0 20px rgba(52, 211, 153, 0.25); }
+        .status-emergency { background: rgba(248, 113, 113, 0.25); color: var(--accent-red); border: 1px solid rgba(248, 113, 113, 0.6); animation: pulseGlow 1.5s infinite; }
+        
+        @keyframes pulseGlow {
+            0% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.6); }
+            70% { box-shadow: 0 0 0 15px rgba(248, 113, 113, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+        }
+        .date-filter-box {
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px; padding: 6px 18px; display: flex; align-items: center; gap: 10px;
+        }
+        .date-filter-input {
+            background: transparent; border: none; color: #ffffff;
+            font-weight: 600; font-size: 0.875rem; outline: none; font-family: var(--font-mono);
+        }
+        .date-filter-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
+        
+        .media-container {
+            border-radius: var(--radius-md); 
+            overflow: hidden;
+            border: 1px solid rgba(56, 189, 248, 0.3); 
+            height: 380px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+            position: relative;
+        }
+        #map { height: 100%; width: 100%; background: #e5e3df; }
+        
+        .custom-radar-pin { position: relative; }
+        .radar-pulse-ring {
+            position: absolute; top: -12px; left: -12px;
+            width: 44px; height: 44px; border-radius: 50%;
+            border: 2px solid #0284c7; box-shadow: 0 0 15px #0284c7;
+            animation: radarRipple 2s infinite ease-out;
+        }
+        .radar-pulse-ring.danger { border-color: #f87171; box-shadow: 0 0 15px #f87171; }
+        .radar-core-dot {
+            width: 20px; height: 20px;
+            background: linear-gradient(135deg, #0284c7, #38bdf8);
+            border: 2px solid #ffffff; border-radius: 50%;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.9);
+            position: relative; z-index: 2;
+        }
+        .radar-core-dot.danger { background: linear-gradient(135deg, #dc2626, #f87171); box-shadow: 0 0 12px rgba(248, 113, 113, 0.9); }
+        @keyframes radarRipple {
+            0% { transform: scale(0.3); opacity: 1; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .leaflet-popup-content-wrapper {
+            background: #0f172a !important;
+            color: #f8fafc !important;
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            border-radius: 14px !important;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.7);
+            padding: 4px;
+        }
+        .leaflet-popup-tip { background: #0f172a !important; border: 1px solid rgba(56, 189, 248, 0.5); }
+        .leaflet-popup-close-button { color: #cbd5e1 !important; padding: 6px 8px 0 0 !important; }
+        .table-responsive { max-height: 350px; overflow-y: auto; }
+        .table-dark-custom {
+            color: var(--text-primary) !important;
+            margin-bottom: 0;
+            --bs-table-bg: transparent !important;
+            --bs-table-color: var(--text-primary) !important;
+        }
+        .table-dark-custom th {
+            position: sticky; top: 0; background-color: #0b1329 !important; color: var(--accent-cyan) !important;
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.2) !important; padding: 14px 12px; z-index: 2;
+        }
+        .table-dark-custom td {
+            padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+            font-size: 0.875rem; color: var(--text-secondary) !important;
+            background-color: transparent !important;
+        }
+        .table-dark-custom tbody tr:hover td { background-color: rgba(255, 255, 255, 0.08) !important; color: #fff !important; }
+        .badge-records-cyan {
+            background: linear-gradient(135deg, #0284c7, #38bdf8) !important;
+            color: #ffffff !important; font-weight: 800; padding: 6px 14px;
+            border-radius: 20px; font-size: 0.8rem; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .badge-records-red {
+            background: linear-gradient(135deg, #dc2626, #f87171) !important;
+            color: #ffffff !important; font-weight: 800; padding: 6px 14px;
+            border-radius: 20px; font-size: 0.8rem; box-shadow: 0 0 12px rgba(248, 113, 113, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        footer {
+            margin-top: auto; background-color: #03050a;
+            border-top: 1px solid rgba(255, 255, 255, 0.1); padding: 24px 0;
+            color: var(--text-muted); font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
+        <div class="container-fluid px-lg-5">
+            <a class="brand-logo" href="#">
+                <div class="logo-icon">
+                    <i class="bi bi-shield-plus"></i>
+                </div>
+                <span>Smart Rescue Wristband</span>
+            </a>
+            <div class="d-flex gap-2 ms-auto">
+                <button class="btn btn-custom-active nav-btn" id="btn-nav-page1" onclick="switchPage(1)">
+                    <i class="bi bi-journal-text me-1"></i> Informasi Sistem
+                </button>
+                <button class="btn btn-custom-outline nav-btn" id="btn-nav-page2" onclick="switchPage(2)">
+                    <i class="bi bi-speedometer2 me-1"></i> Live Dashboard
+                </button>
+            </div>
+        </div>
+    </nav>
+    
+    <!-- HALAMAN 1 -->
+    <div id="page1" class="page-section active my-5">
+        <div class="container px-lg-5">
+            <div class="row align-items-center mb-5 py-2">
+                <div class="col-lg-12 text-center">
+                    <span class="hero-badge mb-4">
+                        <i class="bi bi-cpu-fill text-info fs-6"></i> NEXT-GEN IOT RESCUE SYSTEM
+                    </span>
+                    <h1 class="single-line-title">
+                        Smart Rescue Wristband <span class="text-info">(SRW 1.0)</span>
+                    </h1>
+                    <p class="hero-subtitle mx-auto" style="max-width: 840px;">
+                        Platform monitoring keselamatan darurat berbasis IoT yang dirancang khusus untuk memantau tanda-tanda vital & pelacakan lokasi secara real-time di lingkungan ekstrem tanpa ketergantungan sinyal seluler.
+                    </p>
+                </div>
+            </div>
+            <div class="row g-4 mb-5">
+                <div class="col-md-4">
+                    <div class="p1-card p1-card-center">
+                        <div class="feature-icon-box"><i class="bi bi-heart-pulse-fill"></i></div>
+                        <h5 class="card-heading mb-3">Monitoring Vital Jantung</h5>
+                        <p class="card-body-text">Deteksi otomatis kontinyu terhadap Detak Jantung (BPM) dan Saturasi Oksigen Darah (SpO₂) untuk pencegahan krisis medis awal.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p1-card p1-card-center">
+                        <div class="feature-icon-box"><i class="bi bi-geo-alt-fill"></i></div>
+                        <h5 class="card-heading mb-3">Presisi GPS Real-Time</h5>
+                        <p class="card-body-text">Penentuan posisi akurat berakurasi tinggi dengan rekaman koordinat Lintang & Bujur untuk proses pencarian & evakuasi yang cepat.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p1-card p1-card-center">
+                        <div class="feature-icon-box"><i class="bi bi-broadcast"></i></div>
+                        <h5 class="card-heading mb-3">Telemetri LoRa Off-Grid</h5>
+                        <p class="card-body-text">Transmisi data nirkabel jarak jauh berdaya hemat dengan frekuensi radio LoRa, tetap beroperasi penuh di daerah blindspot/tanpa sinyal.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center mt-5 mb-4">
+                <h3 class="section-title">Panduan Penggunaan Wristband</h3>
+                <p class="section-subheading">Prosedur sederhana pengoperasian perangkat keselamatan pengguna.</p>
+            </div>
+            <div class="row g-4 mb-5">
+                <div class="col-md-3">
+                    <div class="p1-card">
+                        <div class="step-header">
+                            <div class="step-badge">1</div>
+                            <h6 class="card-heading">Aktivasi Power</h6>
+                        </div>
+                        <p class="card-body-text">Nyalakan saklar daya utama pada wristband hingga lampu LED indikator daya menyala.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p1-card">
+                        <div class="step-header">
+                            <div class="step-badge">2</div>
+                            <h6 class="card-heading">Pemasangan Sensor</h6>
+                        </div>
+                        <p class="card-body-text">Pasangkan wristband dengan pas di pergelangan tangan agar sensor optik menempel sempurna pada kulit.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p1-card">
+                        <div class="step-header">
+                            <div class="step-badge">3</div>
+                            <h6 class="card-heading">Lock Sinyal GPS</h6>
+                        </div>
+                        <p class="card-body-text">Berdirilah di area terbuka beberapa saat sampai modul GPS berhasil terkunci dengan jaringan satelit.</p>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="p1-card">
+                        <div class="step-header">
+                            <div class="step-badge">4</div>
+                            <h6 class="card-heading">Tracking Otomatis</h6>
+                        </div>
+                        <p class="card-body-text">Sistem akan secara otomatis mengirimkan data vital & memperbarui rute lokasi setiap kali bergerak sejauh 500 meter.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- HALAMAN 2: LIVE DASHBOARD -->
+    <div id="page2" class="page-section my-4">
+        <div class="container-fluid px-lg-5">
+            <div class="row align-items-center g-3 mb-4">
+                <div class="col-xl-4 col-md-6 d-flex align-items-center gap-3">
+                    <button id="btn-live" class="btn btn-custom-active nav-btn" onclick="toggleLive()">
+                        🟢 Connect (Live)
+                    </button>
+                    <span id="val-waktu" class="badge bg-dark border border-secondary p-2.5 fs-6 text-info font-monospace">
+                        <i class="bi bi-clock me-1"></i> --:--:--
+                    </span>
+                </div>
+                <div class="col-xl-4 col-md-6 d-flex align-items-center gap-2">
+                    <div class="date-filter-box w-100">
+                        <i class="bi bi-calendar-event text-info ms-1"></i>
+                        <input type="date" id="filter-tanggal" class="date-filter-input w-100" onchange="applyDateFilter()" />
+                        <button class="btn btn-sm text-muted p-0 border-0" onclick="resetDateFilter()" title="Reset Filter">
+                            <i class="bi bi-x-circle-fill fs-6 text-white-50"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="col-xl-4 col-md-12 text-xl-end">
+                    <div id="statusBadge" class="status-badge-custom status-waiting">
+                        <i class="bi bi-hourglass-split"></i> Waiting for data...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-3 mb-4">
+                <!-- 1. Heart Rate (BPM) -->
+                <div class="col-stat-5">
+                    <div class="stat-box">
+                        <div class="stat-label">HEART RATE (BPM)</div>
+                        <div class="stat-value text-danger" id="card-bpm">78</div>
+                    </div>
+                </div>
+
+                <!-- 2. Saturasi Oksigen -->
+                <div class="col-stat-5">
+                    <div class="stat-box">
+                        <div class="stat-label">SATURASI OKSIGEN</div>
+                        <div class="stat-value text-info" id="card-spo2">99%</div>
+                    </div>
+                </div>
+
+                <!-- 3. Latitude (Posisi Ditukar Ke Sini) -->
+                <div class="col-stat-5">
+                    <div class="stat-box">
+                        <div class="stat-label">LATITUDE</div>
+                        <div class="stat-value stat-value-mono text-warning" id="card-lat">1.0508</div>
+                    </div>
+                </div>
+
+                <!-- 4. Longitude (Posisi Ditukar Ke Sini) -->
+                <div class="col-stat-5">
+                    <div class="stat-box">
+                        <div class="stat-label">LONGITUDE</div>
+                        <div class="stat-value stat-value-mono text-warning" id="card-lon">104.0987</div>
+                    </div>
+                </div>
+
+                <!-- 5. Status Kesehatan Korban -->
+                <div class="col-stat-5">
+                    <div class="stat-box">
+                        <div class="stat-label">STATUS KESEHATAN KORBAN</div>
+                        <div class="stat-value text-info fs-6 fw-bold mt-2" id="card-health-desc">SEHAT / STABIL</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-4 mb-4">
+                <div class="col-xl-5 col-lg-6">
+                    <div class="custom-card">
+                        <div class="card-title-custom">
+                            <span><i class="bi bi-activity text-danger me-2"></i>Vital Signs Real-Time</span>
+                            <span class="card-subtitle-custom">BPM & SpO₂</span>
+                        </div>
+                        <div style="height: 380px;">
+                            <canvas id="vitalChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-7 col-lg-6">
+                    <div class="custom-card">
+                        <div class="card-title-custom">
+                            <span><i class="bi bi-map-fill text-info me-2"></i>Location & LoRa Telemetry</span>
+                            <span class="card-subtitle-custom">Auto Tracking / 500m</span>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-4">
+                                <div class="stat-box py-2">
+                                    <div class="stat-label">Kecepatan</div>
+                                    <div class="stat-value text-primary fs-5 mt-1" id="val-spd">0 <span class="stat-unit">km/h</span></div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box py-2">
+                                    <div class="stat-label">Satelit GPS</div>
+                                    <div class="stat-value text-success fs-5 mt-1" id="val-sat">0</div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="stat-box py-2">
+                                    <div class="stat-label">Sinyal LoRa</div>
+                                    <div class="stat-value fs-5 mt-1" style="color: var(--accent-purple);" id="val-rssi">0 <span class="stat-unit">dBm</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="media-container">
+                            <div id="map"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-4">
+                <div class="col-xl-5 col-lg-6">
+                    <div class="custom-card p-0 overflow-hidden">
+                        <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold mb-0 text-white"><i class="bi bi-heart-pulse text-danger me-2"></i>Vital Signs Logs</h6>
+                            <span class="badge badge-records-red" id="vitalLogsCount">0 records</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark-custom text-center align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>BPM</th>
+                                        <th>SpO₂</th>
+                                        <th>Status Kesehatan</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-vital">
+                                    <tr><td colspan="4" class="text-muted py-4">Memuat data dari server...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-xl-7 col-lg-6">
+                    <div class="custom-card p-0 overflow-hidden">
+                        <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center">
+                            <h6 class="fw-bold mb-0 text-white"><i class="bi bi-geo-fill text-info me-2"></i>Location & Network Logs</h6>
+                            <span class="badge badge-records-cyan" id="gpsLogsCount">0 records</span>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-dark-custom text-center align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Waktu</th>
+                                        <th>Koordinat</th>
+                                        <th>Speed</th>
+                                        <th>Sat</th>
+                                        <th>RSSI</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbody-gps">
+                                    <tr><td colspan="6" class="text-muted py-4">Memuat data dari server...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <footer class="text-center">
+        <div class="container">
+            <p class="mb-0">© 2026 Smart Rescue Wristband (SRW 1.0) - Integrated IoT Safety Solution</p>
+        </div>
+    </footer>
+    
+    <script>
+        let isLive = true;
+        let timerInterval = null;
+        let globalData = [];
+        let map, mapMarker, pathPolyline;
+        let milestoneMarkersGroup; 
+        let vitalChart;
+
+        window.onload = function() {
+            initMap();
+            initChart();
+            fetchDataFromGAS();
+            timerInterval = setInterval(() => {
+                if (isLive) fetchDataFromGAS();
+            }, 3000);
+        };
+
+        function switchPage(pageNumber) {
+            document.querySelectorAll('.page-section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById('btn-nav-page1').className = pageNumber === 1 ? 'btn btn-custom-active nav-btn' : 'btn btn-custom-outline nav-btn';
+            document.getElementById('btn-nav-page2').className = pageNumber === 2 ? 'btn btn-custom-active nav-btn' : 'btn btn-custom-outline nav-btn';
+            
+            document.getElementById('page' + pageNumber).classList.add('active');
+            if (pageNumber === 2 && map) {
+                setTimeout(() => { map.invalidateSize(); }, 300);
+            }
+        }
+
+        function toggleLive() {
+            isLive = !isLive;
+            const btn = document.getElementById('btn-live');
+            if (isLive) {
+                btn.innerHTML = '🟢 Connect (Live)';
+                btn.className = 'btn btn-custom-active nav-btn';
+                fetchDataFromGAS();
+            } else {
+                btn.innerHTML = '🔴 Paused';
+                btn.className = 'btn btn-custom-outline nav-btn';
+            }
+        }
+
+        function fetchDataFromGAS() {
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler(onDataSuccess)
+                    .withFailureHandler(onDataFailure)
+                    .getDashboardData();
+            }
+        }
+
+        function onDataSuccess(response) {
+            if (response && response.data) {
+                globalData = response.data;
+                renderDashboard(globalData);
+            }
+        }
+
+        function onDataFailure(err) {
+            console.error("Error fetching data:", err);
+        }
+
+        // HAVERSINE CALCULATOR (KM)
+        function calculateTotalDistanceInKm(validData) {
+            if (validData.length < 2) return "0.00";
+            let totalDistMeter = 0;
+            
+            for (let i = 0; i < validData.length - 1; i++) {
+                const lat1 = validData[i].lat;
+                const lon1 = validData[i].lon;
+                const lat2 = validData[i + 1].lat;
+                const lon2 = validData[i + 1].lon;
+                
+                const R = 6371e3;
+                const rad = Math.PI / 180;
+                const dLat = (lat2 - lat1) * rad;
+                const dLon = (lon2 - lon1) * rad;
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(lat1 * rad) * Math.cos(lat2 * rad) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                totalDistMeter += (R * c);
+            }
+            
+            return (totalDistMeter / 1000).toFixed(2);
+        }
+
+        function applyDateFilter() {
+            renderDashboard(globalData);
+        }
+
+        function resetDateFilter() {
+            document.getElementById('filter-tanggal').value = '';
+            renderDashboard(globalData);
+        }
+
+        function renderDashboard(dataset) {
+            if (!dataset || dataset.length === 0) return;
+            const selectedDate = document.getElementById('filter-tanggal').value;
+            let filtered = dataset;
+            if (selectedDate) {
+                filtered = dataset.filter(item => item.tanggal === selectedDate);
+            }
+            const latest = filtered.length > 0 ? filtered[filtered.length - 1] : dataset[dataset.length - 1];
+            const validData = filtered.filter(item => item.lat !== 0 && item.lon !== 0);
+            
+            // Perhitungan total jarak tempuh tetap dilakukan untuk digunakan pada pop-up peta
+            const totalKm = calculateTotalDistanceInKm(validData);
+
+            // Mengisi nilai UI
+            document.getElementById('val-waktu').innerHTML = `<i class="bi bi-clock me-1"></i> ${latest.jam || '--:--:--'}`;
+            document.getElementById('card-bpm').innerText = latest.bpm || 0;
+            document.getElementById('card-spo2').innerText = (latest.spo2 || 0) + '%';
+            
+            // CARD LONGITUDE menggantikan Total Jarak Tempuh
+            document.getElementById('card-lon').innerText = parseFloat(latest.lon || 0).toFixed(4);
+            document.getElementById('card-lat').innerText = parseFloat(latest.lat || 0).toFixed(4);
+            document.getElementById('card-health-desc').innerText = latest.kesehatanKorban || 'Normal / Stabil';
+            document.getElementById('val-spd').innerHTML = `${latest.speed || 0} <span class="stat-unit">km/h</span>`;
+            document.getElementById('val-sat').innerText = latest.satelit || 0;
+            document.getElementById('val-rssi').innerHTML = `${latest.rssi || 0} <span class="stat-unit">dBm</span>`;
+            
+            const statusEl = document.getElementById('statusBadge');
+            if (latest.status === 'BAHAYA' || latest.tingkatResiko === 'KRITIS') {
+                statusEl.className = 'status-badge-custom status-emergency';
+                statusEl.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> BAHAYA / KRITIS`;
+            } else {
+                statusEl.className = 'status-badge-custom status-secure';
+                statusEl.innerHTML = `<i class="bi bi-shield-check"></i> AMAN / NORMAL`;
+            }
+
+            updateMap(filtered, totalKm);
+            updateChart(filtered);
+            renderTables(filtered);
+        }
+
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                attributionControl: false
+            }).setView([-6.200000, 106.816666], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19
+            }).addTo(map);
+            milestoneMarkersGroup = L.layerGroup().addTo(map);
+            pathPolyline = L.polyline([], { 
+                color: '#0284c7', 
+                weight: 5,
+                opacity: 0.85,
+                lineCap: 'round',
+                lineJoin: 'round'
+            }).addTo(map);
+        }
+
+        function updateMap(data, totalKm) {
+            if (!map || data.length === 0) return;
+            const validData = data.filter(item => item.lat !== 0 && item.lon !== 0);
+            if (validData.length === 0) return;
+            milestoneMarkersGroup.clearLayers();
+            const latlngs = validData.map(item => [item.lat, item.lon]);
+            pathPolyline.setLatLngs(latlngs);
+
+            validData.forEach((pt, idx) => {
+                if (pt.is500mPoint && idx > 0) {
+                    const mMarker = L.circleMarker([pt.lat, pt.lon], {
+                        radius: 6,
+                        fillColor: '#fbbf24',
+                        color: '#ffffff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.9
+                    });
+                    mMarker.bindPopup(`
+                        <div style="font-size: 0.8rem; font-weight:700; text-align:center;">
+                            <i class="bi bi-flag-fill text-warning me-1"></i> Titik Jelajah +${pt.distanceFromLastMarker || 500}m
+                            <div style="font-size:0.75rem; color:#94a3b8; font-weight:400;" class="mt-1">Waktu: ${pt.jam}</div>
+                        </div>
+                    `);
+                    milestoneMarkersGroup.addLayer(mMarker);
+                }
+            });
+
+            const latest = validData[validData.length - 1];
+            const isDanger = (latest.tingkatResiko === 'KRITIS' || latest.status === 'BAHAYA');
+            
+            const customIcon = L.divIcon({
+                className: 'custom-radar-pin',
+                html: `
+                    <div class="radar-pulse-ring ${isDanger ? 'danger' : ''}"></div>
+                    <div class="radar-core-dot ${isDanger ? 'danger' : ''}"></div>
+                `,
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            });
+
+            if (!mapMarker) {
+                mapMarker = L.marker([latest.lat, latest.lon], { icon: customIcon }).addTo(map);
+            } else {
+                mapMarker.setLatLng([latest.lat, latest.lon]);
+                mapMarker.setIcon(customIcon);
+            }
+
+            let badgeClass = "bg-success";
+            if (isDanger) {
+                badgeClass = "bg-danger";
+            } else if (latest.tingkatResiko === 'TINGGI' || latest.tingkatResiko === 'SEDANG') {
+                badgeClass = "bg-warning text-dark";
+            }
+
+            // POPUP PETA: Menampilkan Total Jarak Tempuh (km)
+            const popupContent = `
+                <div style="font-family: 'Plus Jakarta Sans', sans-serif; min-width: 230px; padding: 4px;">
+                    <div style="font-weight: 800; font-size: 0.95rem; color: #ffffff; border-bottom: 1px solid rgba(255,255,255,0.15); padding-bottom: 8px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;">
+                        <span><i class="bi bi-person-badge-fill text-info me-1"></i> Data Wristband</span>
+                        <span class="badge ${badgeClass}" style="font-size: 0.68rem; text-transform: uppercase; letter-spacing:0.5px;">${latest.status || 'STANDBY'}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; line-height: 1.6; color: #e2e8f0;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                            <span><i class="bi bi-heart-pulse-fill text-danger me-1"></i><strong>Heart Rate:</strong></span>
+                            <span style="font-weight: 800; color: #f87171;">${latest.bpm} BPM</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                            <span><i class="bi bi-droplet-fill text-info me-1"></i><strong>SpO₂:</strong></span>
+                            <span style="font-weight: 800; color: #38bdf8;">${latest.spo2}%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 3px; background: rgba(56, 189, 248, 0.1); padding: 4px 6px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.2);">
+                            <span><i class="bi bi-geo-alt-fill text-warning me-1"></i><strong>Total Jarak Tempuh:</strong></span>
+                            <span style="font-weight: 800; color: #fbbf24;">${totalKm || '0.00'} km</span>
+                        </div>
+                        <div style="margin-top: 6px; padding: 6px 10px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 0.78rem; font-weight: 600; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.1);">
+                            Status Korban: <span style="color: #ffffff;">${latest.kesehatanKorban || '-'}</span>
+                        </div>
+                        <hr style="margin: 8px 0; border-color: rgba(255,255,255,0.15);">
+                        <div style="font-size: 0.75rem; color: #94a3b8; display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                            <div><i class="bi bi-clock me-1"></i><b>${latest.jam || '-'}</b></div>
+                            <div><i class="bi bi-speedometer2 me-1"></i><b>${latest.speed || 0} km/h</b></div>
+                            <div style="grid-column: span 2;"><i class="bi bi-broadcast me-1"></i>Sinyal LoRa: <b>${latest.rssi || 0} dBm</b></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            mapMarker.bindPopup(popupContent);
+            map.panTo([latest.lat, latest.lon]);
+        }
+
+        function focusOnMap(lat, lon) {
+            if (map && lat !== 0 && lon !== 0) {
+                map.setView([lat, lon], 17, { animate: true });
+                if (mapMarker) {
+                    mapMarker.setLatLng([lat, lon]);
+                    mapMarker.openPopup();
+                }
+            }
+        }
+
+        function initChart() {
+            const ctx = document.getElementById('vitalChart').getContext('2d');
+            vitalChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Heart Rate (BPM)',
+                            data: [],
+                            borderColor: '#f87171',
+                            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.35,
+                            pointRadius: 3
+                        },
+                        {
+                            label: 'SpO₂ (%)',
+                            data: [],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.35,
+                            pointRadius: 3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { 
+                            ticks: { color: '#94a3b8', font: { size: 10 } }, 
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' } 
+                        },
+                        y: { 
+                            ticks: { color: '#94a3b8', font: { size: 10 } }, 
+                            grid: { color: 'rgba(255, 255, 255, 0.05)' } 
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#ffffff', font: { family: 'Plus Jakarta Sans', weight: '600' } } }
+                    }
+                }
+            });
+        }
+
+        function updateChart(dataset) {
+            if (!vitalChart) return;
+            const labels = dataset.map(d => d.jam || '');
+            const bpmData = dataset.map(d => d.bpm || 0);
+            const spo2Data = dataset.map(d => d.spo2 || 0);
+
+            vitalChart.data.labels = labels;
+            vitalChart.data.datasets[0].data = bpmData;
+            vitalChart.data.datasets[1].data = spo2Data;
+            vitalChart.update();
+        }
+
+        function renderTables(dataset) {
+            const tbodyVital = document.getElementById('tbody-vital');
+            const tbodyGps = document.getElementById('tbody-gps');
+            
+            document.getElementById('vitalLogsCount').innerText = `${dataset.length} records`;
+            document.getElementById('gpsLogsCount').innerText = `${dataset.length} records`;
+
+            if (dataset.length === 0) {
+                tbodyVital.innerHTML = '<tr><td colspan="4" class="text-muted py-4">Tidak ada data.</td></tr>';
+                tbodyGps.innerHTML = '<tr><td colspan="6" class="text-muted py-4">Tidak ada data.</td></tr>';
+                return;
+            }
+
+            let vitalRows = '';
+            let gpsRows = '';
+
+            // Menampilkan urutan data terbaru di paling atas
+            [...dataset].reverse().forEach(item => {
+                vitalRows += `
+                    <tr>
+                        <td>${item.jam || '-'}</td>
+                        <td class="fw-bold text-danger">${item.bpm || 0}</td>
+                        <td class="fw-bold text-info">${item.spo2 || 0}%</td>
+                        <td><span class="badge bg-secondary">${item.kesehatanKorban || 'Normal'}</span></td>
+                    </tr>
+                `;
+
+                gpsRows += `
+                    <tr>
+                        <td>${item.jam || '-'}</td>
+                        <td class="font-monospace">${parseFloat(item.lat||0).toFixed(4)}, ${parseFloat(item.lon||0).toFixed(4)}</td>
+                        <td>${item.speed || 0} km/h</td>
+                        <td>${item.satelit || 0}</td>
+                        <td>${item.rssi || 0} dBm</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-info rounded-circle" onclick="focusOnMap(${item.lat}, ${item.lon})" title="Fokus Peta">
+                                <i class="bi bi-geo-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbodyVital.innerHTML = vitalRows;
+            tbodyGps.innerHTML = gpsRows;
+        }
+    </script>
+</body>
+</html>
